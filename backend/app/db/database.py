@@ -30,9 +30,14 @@ settings = get_settings()
 
 # Railway's DATABASE_URL sometimes starts with "postgres://" (old Heroku-style
 # scheme) but SQLAlchemy 2.x + psycopg2 requires "postgresql://".
-_db_url = settings.database_url
+_db_url = settings.database_url.strip().strip('"').strip("'")
 if _db_url.startswith("postgres://"):
     _db_url = _db_url.replace("postgres://", "postgresql://", 1)
+
+# Force the psycopg2 driver (the one in requirements.txt). Newer SQLAlchemy
+# versions default plain "postgresql://" to psycopg v3, which isn't installed.
+if _db_url.startswith("postgresql://"):
+    _db_url = _db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 _connect_args = {"check_same_thread": False} if _db_url.startswith("sqlite") else {}
 
