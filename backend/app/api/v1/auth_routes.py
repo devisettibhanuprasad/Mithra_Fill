@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
-from backend.app.core.auth import get_current_user_email, oauth, require_login
+from backend.app.core.auth import AUTH_DISABLED, get_current_user_email, oauth, require_login
 from backend.app.core.config import get_settings
 from backend.app.core.logging import get_logger
 from backend.app.db.database import get_db
@@ -26,6 +26,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.get("/login")
 async def login(request: Request):
     """Redirect to Google's OAuth consent screen."""
+    if AUTH_DISABLED:  # TEMPORARY: login switched off
+        return RedirectResponse(url="/app")
     settings = get_settings()
     if settings.public_base_url:
         # Explicit, not inferred — see the comment on public_base_url in
@@ -44,6 +46,8 @@ async def auth_callback(request: Request, db: Session = Depends(get_db)):
     read the user's profile, upsert the User row, log a LoginEvent,
     and store their email in the session cookie.
     """
+    if AUTH_DISABLED:  # TEMPORARY: login switched off
+        return RedirectResponse(url="/app")
     try:
         token = await oauth.google.authorize_access_token(request)
     except Exception as exc:
@@ -96,6 +100,8 @@ async def auth_callback(request: Request, db: Session = Depends(get_db)):
 @router.get("/logout")
 async def logout(request: Request, db: Session = Depends(get_db)):
     """Log a logout event and clear the session cookie."""
+    if AUTH_DISABLED:  # TEMPORARY: login switched off
+        return RedirectResponse(url="/app")
     email = get_current_user_email(request)
     if email:
         user = db.query(User).filter(User.email == email).first()
@@ -117,4 +123,7 @@ async def me(request: Request, email: str = Depends(require_login)):
     settings = get_settings()
     name = request.session.get("name") or ""
     is_admin = email.lower() in [e.lower() for e in settings.admin_emails]
+    if AUTH_DISABLED:  # TEMPORARY: login switched off
+        name = "Guest"
+        is_admin = True
     return {"email": email, "name": name, "is_admin": is_admin}

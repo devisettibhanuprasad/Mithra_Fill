@@ -20,6 +20,8 @@ holds the (signed, tamper-proof) session data.
 
 from __future__ import annotations
 
+import os
+
 from authlib.integrations.starlette_client import OAuth
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
@@ -29,6 +31,16 @@ from backend.app.core.logging import get_logger
 
 logger = get_logger(__name__)
 settings = get_settings()
+
+# ── TEMPORARY: Google login on/off switch ────────────────────────────────────
+# While AUTH_DISABLED is true, nobody has to sign in: every visitor is treated
+# as one shared "guest" user (who also counts as an admin). Google OAuth code
+# below is left untouched.
+#
+# TO RE-ENABLE LOGIN: set the Railway variable AUTH_DISABLED=false
+# (or change the default "true" below to "false") and redeploy.
+AUTH_DISABLED = os.getenv("AUTH_DISABLED", "true").strip().lower() in ("1", "true", "yes")
+GUEST_EMAIL = "guest@local"
 
 oauth = OAuth()
 oauth.register(
@@ -42,6 +54,8 @@ oauth.register(
 
 def get_current_user_email(request: Request) -> str | None:
     """Return the logged-in user's email from the session cookie, or None."""
+    if AUTH_DISABLED:  # TEMPORARY: login switched off
+        return GUEST_EMAIL
     return request.session.get("email")
 
 
@@ -85,6 +99,8 @@ def require_admin(request: Request) -> str:
     FastAPI dependency for the admin dashboard.
     Requires login AND email must be in settings.admin_emails.
     """
+    if AUTH_DISABLED:  # TEMPORARY: login switched off, admin pages open
+        return GUEST_EMAIL
     email = require_login(request)
     if email.lower() not in [e.lower() for e in settings.admin_emails]:
         raise HTTPException(

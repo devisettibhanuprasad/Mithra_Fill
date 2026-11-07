@@ -14,7 +14,8 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from backend.app.core.exceptions import (
     CorruptedFileError, FileTooLargeError, UnsupportedFileTypeError,
 )
-from backend.app.core.auth import require_login, redirect_if_not_logged_in
+from backend.app.core.auth import AUTH_DISABLED, require_login, redirect_if_not_logged_in
+from fastapi.responses import RedirectResponse
 from backend.app.core.validators import validate_mobile, validate_email
 from backend.app.core.logging import get_logger
 from backend.app.schemas.documents import (
@@ -62,8 +63,16 @@ def _error(http_status: int, error_code: str, message: str,
 
 # ── Pages ─────────────────────────────────────────────────────────────────────
 
+@router.get("/", include_in_schema=False)
+async def root():
+    # Bare URL -> app (login off) or login page (login on)
+    return RedirectResponse(url="/app" if AUTH_DISABLED else "/login")
+
+
 @router.get("/login", response_class=HTMLResponse, include_in_schema=False)
 async def login_page():
+    if AUTH_DISABLED:  # TEMPORARY: login switched off
+        return RedirectResponse(url="/app")
     html_path = Path(__file__).parents[4] / "frontend" / "login.html"
     if html_path.exists():
         return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
